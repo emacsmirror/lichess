@@ -2,7 +2,7 @@
 ;;
 ;; Copyright (C) 2025-2026  Alexandr Timchenko
 ;; URL: https://github.com/tmythicator/Lichess.el
-;; Version: 0.8
+;; Version: 0.9
 ;; Package-Requires: ((emacs "27.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;;
@@ -116,7 +116,7 @@
   (if-let* ((button (or btn (button-at (point))))
             (url (button-get button 'lichess-url))
             (round-id (button-get button 'lichess-round-id)))
-    (lichess-broadcast-view-watch-round round-id url)
+      (lichess-broadcast-view-watch-round round-id url)
     (message "No broadcast found at point.")))
 
 (provide 'lichess-broadcast-list)

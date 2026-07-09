@@ -2,7 +2,7 @@
 ;;
 ;; Copyright (C) 2025-2026  Alexandr Timchenko
 ;; URL: https://github.com/tmythicator/Lichess.el
-;; Version: 0.8
+;; Version: 0.9
 ;; Package-Requires: ((emacs "27.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;;
@@ -22,26 +22,26 @@
 (require 'json)
 (require 'subr-x)
 
+(declare-function lichess-token "lichess")
+
 ;;;; Header helpers
 (defun lichess-http--auth-header-line ()
   "Return raw Authorization header line for manual sockets, or \"\"."
-  (if (and (boundp 'lichess-token)
-           (stringp lichess-token)
-           (> (length lichess-token) 0))
-      (format "Authorization: Bearer %s\r\n" lichess-token)
-    ""))
+  (let ((token (lichess-token)))
+    (if (and token (stringp token) (> (length token) 0))
+        (format "Authorization: Bearer %s\r\n" token)
+      "")))
 
 (defun lichess-http--auth-headers (&optional extra accept)
   "Return an alist of headers.  Add Authorization when `lichess-token' is set.
 EXTRA (alist) is appended.  ACCEPT, when non-nil, sets Accept header."
-  (append
-   (when (and (boundp 'lichess-token)
-              (stringp lichess-token)
-              (> (length lichess-token) 0))
-     `(("Authorization" . ,(concat "Bearer " lichess-token))))
-   (when accept
-     `(("Accept" . ,accept)))
-   extra))
+  (let ((token (lichess-token)))
+    (append
+     (when (and token (stringp token) (> (length token) 0))
+       `(("Authorization" . ,(concat "Bearer " token))))
+     (when accept
+       `(("Accept" . ,accept)))
+     extra)))
 
 (defun lichess-http--abs-url (url-or-endpoint)
   "Return absolute URL for URL-OR-ENDPOINT (prepend https://lichess.org if needed)."
