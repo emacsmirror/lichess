@@ -2,7 +2,7 @@
 ;;
 ;; Copyright (C) 2025-2026  Alexandr Timchenko
 ;; URL: https://github.com/tmythicator/Lichess.el
-;; Version: 0.9
+;; Version: 1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -69,6 +69,35 @@ See `lichess-core.el` for the plist structure definition."
      :ep ep
      :halfmove hmc
      :fullmove (max 1 fmn))))
+
+(defun lichess-fen--stm (fen)
+  "Quickly extract side to move (stm) symbol (\\='w or \\='b) from FEN.
+Does not parse the rest of the board to save allocations."
+  (when (stringp fen)
+    (let*
+        ((raw-fen
+          (if (string= fen "startpos")
+              "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+            fen))
+         (fields (split-string (string-trim raw-fen) " +" t))
+         (active (nth 1 fields)))
+      (if (and active (string= active "b"))
+          'b
+        'w))))
+
+(defun lichess-fen--fullmove (fen)
+  "Quickly extract the fullmove number from FEN."
+  (if (stringp fen)
+      (let*
+          ((raw-fen
+            (if (string= fen "startpos")
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+              fen))
+           (fields (split-string (string-trim raw-fen) " +" t)))
+        (if (>= (length fields) 6)
+            (string-to-number (nth 5 fields))
+          1))
+    1))
 
 (defun lichess-fen--rows->board (rows)
   "Convert 8 FEN ROWS into an 8×8 vector of piece chars.

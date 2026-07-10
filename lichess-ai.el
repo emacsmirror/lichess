@@ -2,7 +2,7 @@
 ;;
 ;; Copyright (C) 2025-2026  Alexandr Timchenko
 ;; URL: https://github.com/tmythicator/Lichess.el
-;; Version: 0.9
+;; Version: 1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;;
@@ -24,12 +24,12 @@
   :type 'integer
   :group 'lichess)
 
-(defcustom lichess-ai-default-clock-limit 300
-  "Default clock limit in seconds (5 minutes)."
+(defcustom lichess-ai-default-clock-limit 5
+  "Default clock limit in minutes."
   :type 'integer
   :group 'lichess)
 
-(defcustom lichess-ai-default-clock-increment 3
+(defcustom lichess-ai-default-clock-increment 10
   "Default clock increment in seconds."
   :type 'integer
   :group 'lichess)
@@ -43,13 +43,13 @@
          (color
           (completing-read "Your Color: " '("white" "black" "random")
                            nil t "white"))
-         (limit
-          (read-number "Clock limit (seconds): "
+         (limit-min
+          (read-number "Clock limit (minutes): "
                        lichess-ai-default-clock-limit))
          (increment
           (read-number "Clock increment (seconds): "
                        lichess-ai-default-clock-increment)))
-    (lichess-ai--start-game level color limit increment)))
+    (lichess-ai--start-game level color (* limit-min 60) increment)))
 
 (defun lichess-ai--start-game (level color limit increment)
   "Send the POST request to Lichess to start a game.
@@ -59,15 +59,17 @@ LIMIT and INCREMENT define the time control."
   (lichess-api-challenge-ai
    level (intern color) limit increment nil
    (lambda (res)
-     (let ((status (car res))
-           (json (cdr res)))
-       (if (memq status '(200 201))
-           (let ((id (lichess-util--aget json 'id)))
-             (if id
-                 (progn
-                   (message "Game started! ID: %s" id)
-                   (lichess-game-play id))
-               (message "Error: No game ID returned from Lichess.")))
+     (if (lichess-http-result-success res)
+         (let* ((json (lichess-http-result-data res))
+                (id (lichess-util--aget json 'id)))
+           (if id
+               (progn
+                 (message "Game started! ID: %s" id)
+                 (lichess-game-play id))
+             (message "Error: No game ID returned from Lichess.")))
+       (let* ((err (lichess-http-result-error res))
+              (status (car err))
+              (json (cdr err)))
          (message "Lichess AI error: %d %s"
                   status
                   (or (lichess-util--aget json 'error) "")))))

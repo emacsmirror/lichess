@@ -2,7 +2,7 @@
 ;;
 ;; Copyright (C) 2025-2026  Alexandr Timchenko
 ;; URL: https://github.com/tmythicator/Lichess.el
-;; Version: 0.9
+;; Version: 1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; See LICENSE for details.
@@ -52,27 +52,29 @@ ARGS are passed to `format`."
       (lichess-http-json
        "/api/account"
        (lambda (res)
-         (if (/= (car res) 200)
-             (lichess-debug--log "HTTP %s /account" (car res))
-           (let ((j (cdr res)))
+         (if (not (lichess-http-result-success res))
+             (lichess-debug--log "HTTP %s /account"
+                                 (car
+                                  (lichess-http-result-error res)))
+           (let ((j (lichess-http-result-data res)))
              (lichess-debug--log "Auth OK as %s"
                                  (alist-get 'username j))))
          (lichess-debug--log "/api/account/playing …")
          (lichess-http-json
           "/api/account/playing"
           (lambda (res2)
-            (pcase (car res2)
-              (200
-               (let* ((j (cdr res2))
-                      (games (alist-get 'nowPlaying j))
-                      (n (length games)))
-                 (lichess-debug--log (if (> n 0)
-                                         "%d ongoing game(s)"
-                                       "nowPlaying = []")
-                                     n)))
-              (_
-               (lichess-debug--log "HTTP %s /account/playing"
-                                   (car res2)))))))))))
+            (if (lichess-http-result-success res2)
+                (let* ((j (lichess-http-result-data res2))
+                       (games (alist-get 'nowPlaying j))
+                       (n (length games)))
+                  (lichess-debug--log (if (> n 0)
+                                          "%d ongoing game(s)"
+                                        "nowPlaying = []")
+                                      n))
+              (lichess-debug--log "HTTP %s /account/playing"
+                                  (car
+                                   (lichess-http-result-error
+                                    res2)))))))))))
 
 ;;;###autoload
 (defun lichess-debug-following ()
@@ -85,16 +87,18 @@ ARGS are passed to `format`."
       (lichess-debug--log "Fetching /api/rel/following …")
       (lichess-api-get-following
        (lambda (res)
-         (let ((status (car res))
-               (data (cdr res)))
-           (lichess-debug--log "HTTP %d response received" status)
-           (if (= status 200)
-               (progn
-                 (lichess-debug--log "Data length: %d chars"
-                                     (length data))
-                 (lichess-debug--log "--- RAW DATA START ---")
-                 (lichess-debug--log "%s" data)
-                 (lichess-debug--log "--- RAW DATA END ---"))
+         (if (lichess-http-result-success res)
+             (let ((data (lichess-http-result-data res)))
+               (lichess-debug--log "HTTP 200 response received")
+               (lichess-debug--log "Data length: %d chars"
+                                   (length data))
+               (lichess-debug--log "--- RAW DATA START ---")
+               (lichess-debug--log "%s" data)
+               (lichess-debug--log "--- RAW DATA END ---"))
+           (let* ((err (lichess-http-result-error res))
+                  (status (car err))
+                  (data (cdr err)))
+             (lichess-debug--log "HTTP %d response received" status)
              (lichess-debug--log "Error response: %s" data))))))))
 
 ;;;###autoload
@@ -190,48 +194,73 @@ ARGS are passed to `format`."
               (insert x))
              (t
               (insert (format "%s" x))))))
-        (insert "\n") (setq tail (copy-marker (point) t)))))
+        (insert "\n") (setq tail (copy-marker (point) t))))
+      (fetch-and-print-game
+       (gid)
+       (lichess-http-json
+        (format "/api/game/%s" gid)
+        (lambda (res)
+          (if (lichess-http-result-success res)
+              (append-tail
+               :ts (format "HTTP 200 /api/game/%s" gid)
+               :nl "--- RAW JSON ---"
+               :nl
+               :nl
+               :pp (lichess-http-result-data res)
+               :hr
+               :nl)
+            (let* ((err (lichess-http-result-error res))
+                   (status (car err))
+                   (data (cdr err)))
+              (append-tail
+               :ts (format "HTTP %s /api/game/%s" status gid)
+               :nl "--- ERROR DATA ---"
+               :nl
+               :pp data
+               :hr
+               :nl)))))))
      ;; Get channels
      (lichess-http-json
       "/api/tv/channels"
       (lambda (res)
-        (let ((status (car res))
-              (data (cdr res)))
-          (append-tail
-           :hr
-           :ts (format "HTTP %s /api/tv/channels" status)
-           :nl "--- RAW JSON ---"
-           :nl
-           :nl
-           :pp data
-           :hr
-           :nl)
-          ;; Get optional game of CHANNEL
-          (when (and (= status 200) channel)
-            (let* ((sym (intern (downcase channel)))
-                   (entry (alist-get sym data))
-                   (gid
-                    (and entry
-                         (or (alist-get 'gameId entry)
-                             (alist-get 'id entry)))))
+        (if (not (lichess-http-result-success res))
+            (let* ((err (lichess-http-result-error res))
+                   (status (car err))
+                   (data (cdr err)))
               (append-tail
-               (format "Channel %s -> game %s" channel (or gid "nil"))
-               :nl
                :hr
-               :nl)
-              (when gid
-                (lichess-http-json
-                 (format "/api/game/%s" gid)
-                 (lambda (res2)
-                   (append-tail
-                    :ts
-                    (format "HTTP %s /api/game/%s" (car res2) gid)
-                    :nl "--- RAW JSON ---"
-                    :nl
-                    :nl
-                    :pp (cdr res2)
-                    :hr
-                    :nl))))))))))))
+               :ts (format "HTTP %s /api/tv/channels" status)
+               :nl "--- ERROR DATA ---"
+               :nl
+               :pp data
+               :hr
+               :nl))
+          (let* ((data (lichess-http-result-data res)))
+            (append-tail
+             :hr
+             :ts "HTTP 200 /api/tv/channels"
+             :nl "--- RAW JSON ---"
+             :nl
+             :nl
+             :pp data
+             :hr
+             :nl)
+            (when channel
+              (let* ((sym (intern (downcase channel)))
+                     (entry (alist-get sym data))
+                     (gid
+                      (and entry
+                           (or (alist-get 'gameId entry)
+                               (alist-get 'id entry)))))
+                (append-tail
+                 (format "Channel %s -> game %s"
+                         channel
+                         (or gid "nil"))
+                 :nl
+                 :hr
+                 :nl)
+                (when gid
+                  (fetch-and-print-game gid)))))))))))
 
 
 ;;;###autoload

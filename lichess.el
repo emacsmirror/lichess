@@ -5,7 +5,7 @@
 ;; Author: Alexandr Timchenko <atimchenko92@gmail.com>
 ;; Maintainer: Alexandr Timchenko <atimchenko92@gmail.com>
 ;; URL: https://github.com/tmythicator/Lichess.el
-;; Version: 0.9
+;; Version: 1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: games, chess, lichess, api
 ;;
@@ -45,6 +45,7 @@
 (require 'lichess-ai)
 (require 'lichess-challenge)
 (require 'lichess-challenge-list)
+(require 'lichess-seek)
 (require 'lichess-fen)
 (require 'lichess-board)
 (require 'lichess-broadcast-list)
@@ -87,6 +88,7 @@ Otherwise, try to retrieve it using `auth-source'."
             ("Lichess: Watch game" . lichess-game-watch)
             ("Lichess: Challenge a Friend" . lichess-challenge-user)
             ("Lichess: List Challenges" . lichess-challenge-list)
+            ("Lichess: Seek Game" . lichess-seek-game)
             ("Lichess: Play against AI" . lichess-ai-challenge)
             ("Settings: Set Board Style" . lichess-set-style)))
          (debug-choices

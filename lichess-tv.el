@@ -2,7 +2,7 @@
 ;;
 ;; Copyright (C) 2025-2026  Alexandr Timchenko
 ;; URL: https://github.com/tmythicator/Lichess.el
-;; Version: 0.9
+;; Version: 1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; See LICENSE for details.
@@ -87,9 +87,16 @@
                  cur-id (get-text-property bol 'lichess-game-id)))
               ;; 2) fallback: locate by ID across the buffer
               (when (and id (not (equal id cur-id)))
-                (let ((hit
-                       (text-property-any
-                        (point-min) (point-max) 'lichess-game-id id)))
+                (let ((hit nil)
+                      (pos (point-min)))
+                  (while (and (not hit) (< pos (point-max)))
+                    (if (equal
+                         (get-text-property pos 'lichess-game-id) id)
+                        (setq hit pos)
+                      (setq pos
+                            (next-single-property-change
+                             pos 'lichess-game-id
+                             nil (point-max)))))
                   (when hit
                     (goto-char hit)
                     (setq
@@ -117,15 +124,14 @@ CHAN-NAME is the channel label."
        (lichess-api-get-game
         id
         (lambda (res)
-          (let ((status (car res))
-                (data (cdr res)))
-            (if (= status 200)
-                (let ((vs (lichess-util--game->vs data)))
-                  (lichess-tv--update-line marker
-                                           (format
-                                            "%-12s  %-64s  id:%s"
-                                            chan-name vs id)
-                                           id))
+          (if (lichess-http-result-success res)
+              (let* ((data (lichess-http-result-data res))
+                     (vs (lichess-util--game->vs data)))
+                (lichess-tv--update-line
+                 marker (format "%-12s  %-64s  id:%s" chan-name vs id)
+                 id))
+            (let* ((err (lichess-http-result-error res))
+                   (status (car err)))
               (lichess-tv--update-line marker
                                        (format
                                         "%-12s  id:%s (HTTP %s)"
@@ -148,12 +154,15 @@ CHAN-NAME is the channel label."
 
 (defun lichess-tv--handle-channels (res)
   "Process /api/tv/channels RES."
-  (if (/= (car res) 200)
-      (lichess-core-with-buf
-       (get-buffer lichess-tv--buf)
-       (erase-buffer)
-       (insert (format "HTTP %s from /api/tv/channels\n" (car res))))
-    (mapc #'lichess-tv--insert-channel (cdr res))))
+  (if (not (lichess-http-result-success res))
+      (let* ((err (lichess-http-result-error res))
+             (status (car err)))
+        (lichess-core-with-buf
+         (get-buffer lichess-tv--buf)
+         (erase-buffer)
+         (insert (format "HTTP %s from /api/tv/channels\n" status))))
+    (mapc
+     #'lichess-tv--insert-channel (lichess-http-result-data res))))
 
 (provide 'lichess-tv)
 ;;; lichess-tv.el ends here

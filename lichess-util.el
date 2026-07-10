@@ -2,7 +2,7 @@
 ;;
 ;; Copyright (C) 2025-2026  Alexandr Timchenko
 ;; URL: https://github.com/tmythicator/Lichess.el
-;; Version: 0.9
+;; Version: 1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; See LICENSE for details.
@@ -126,9 +126,9 @@ Passes the result string to CALLBACK."
        (lichess-api-cloud-eval
         fen
         (lambda (res)
-          (if (eq (car res) 200)
+          (if (lichess-http-result-success res)
               (when (functionp callback)
-                (let* ((data (cdr res))
+                (let* ((data (lichess-http-result-data res))
                        (pvs (lichess-util--aget data 'pvs))
                        (best-pv (and pvs (car pvs)))
                        (cp
